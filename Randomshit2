@@ -1,0 +1,838 @@
+local Players = game:GetService("Players")
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
+local RunService = game:GetService("RunService")
+local Lighting = game:GetService("Lighting")
+local UserInputService = game:GetService("UserInputService")
+
+local LocalPlayer = Players.LocalPlayer
+
+-- SETTINGS
+local WeaponName = "Bat"
+local AutoZombie = false
+local AutoScrap = false
+local StopPickup = false
+local WalkspeedOn = false
+local InfiniteJumpOn = false
+local Range = 25
+local Delay = 0.05
+
+-- ESP STORAGE
+local ESPRegistry = {}
+local ESPCrateData = { highlights = {}, labels = {}, enabled = false }
+local ESPMysteryData = { highlights = {}, labels = {}, enabled = false }
+
+-- REMOTES
+local AdjustBackpackRemote
+pcall(function()
+	AdjustBackpackRemote = ReplicatedStorage
+		:WaitForChild("Remotes", 10)
+		:WaitForChild("Tools", 10)
+		:WaitForChild("AdjustBackpack", 10)
+end)
+
+-- GUI
+local ScreenGui = Instance.new("ScreenGui")
+ScreenGui.Name = "ReaperFarm"
+ScreenGui.ResetOnSpawn = false
+
+pcall(function()
+	ScreenGui.Parent = game:GetService("CoreGui")
+end)
+
+if not ScreenGui.Parent then
+	ScreenGui.Parent = LocalPlayer:WaitForChild("PlayerGui")
+end
+
+local MainFrame = Instance.new("Frame")
+MainFrame.Size = UDim2.new(0, 520, 0, 370)
+MainFrame.Position = UDim2.new(0.5, -260, 0.5, -185)
+MainFrame.BackgroundColor3 = Color3.fromRGB(15,15,15)
+MainFrame.BackgroundTransparency = 0.2
+MainFrame.Active = true
+MainFrame.Draggable = true
+MainFrame.Parent = ScreenGui
+
+local Corner = Instance.new("UICorner")
+Corner.CornerRadius = UDim.new(0, 8)
+Corner.Parent = MainFrame
+
+local Stroke = Instance.new("UIStroke")
+Stroke.Thickness = 2
+Stroke.Parent = MainFrame
+
+local Gradient = Instance.new("UIGradient")
+Gradient.Color = ColorSequence.new{
+	ColorSequenceKeypoint.new(0, Color3.fromRGB(255,140,0)),
+	ColorSequenceKeypoint.new(1, Color3.fromRGB(0,170,255))
+}
+Gradient.Parent = Stroke
+
+-- TITLE BAR
+local TitleBar = Instance.new("Frame")
+TitleBar.Size = UDim2.new(1, 0, 0, 35)
+TitleBar.BackgroundColor3 = Color3.fromRGB(20, 20, 20)
+TitleBar.BorderSizePixel = 0
+TitleBar.Parent = MainFrame
+
+local TitleCorner = Instance.new("UICorner")
+TitleCorner.CornerRadius = UDim.new(0, 8)
+TitleCorner.Parent = TitleBar
+
+local TitleLabel = Instance.new("TextLabel")
+TitleLabel.Size = UDim2.new(1, -40, 1, 0)
+TitleLabel.Position = UDim2.new(0, 10, 0, 0)
+TitleLabel.BackgroundTransparency = 1
+TitleLabel.TextColor3 = Color3.new(1, 1, 1)
+TitleLabel.TextXAlignment = Enum.TextXAlignment.Left
+TitleLabel.Font = Enum.Font.GothamBold
+TitleLabel.TextSize = 14
+TitleLabel.Text = "⚔ ReaperFarm"
+TitleLabel.Parent = TitleBar
+
+local CloseBtn = Instance.new("TextButton")
+CloseBtn.Size = UDim2.new(0, 28, 0, 28)
+CloseBtn.Position = UDim2.new(1, -32, 0, 3)
+CloseBtn.BackgroundColor3 = Color3.fromRGB(200, 50, 50)
+CloseBtn.TextColor3 = Color3.new(1,1,1)
+CloseBtn.Font = Enum.Font.GothamBold
+CloseBtn.TextSize = 14
+CloseBtn.Text = "X"
+CloseBtn.Parent = TitleBar
+
+local CloseCorner = Instance.new("UICorner")
+CloseCorner.CornerRadius = UDim.new(0, 6)
+CloseCorner.Parent = CloseBtn
+
+CloseBtn.MouseButton1Click:Connect(function()
+	for _, data in pairs(ESPRegistry) do
+		if data.highlights then
+			for _, hl in pairs(data.highlights) do pcall(function() hl:Destroy() end) end
+		end
+		if data.labels then
+			for _, lb in pairs(data.labels) do pcall(function() lb:Destroy() end) end
+		end
+	end
+	for _, hl in pairs(ESPCrateData.highlights) do pcall(function() hl:Destroy() end) end
+	for _, lb in pairs(ESPCrateData.labels) do pcall(function() lb:Destroy() end) end
+	for _, hl in pairs(ESPMysteryData.highlights) do pcall(function() hl:Destroy() end) end
+	for _, lb in pairs(ESPMysteryData.labels) do pcall(function() lb:Destroy() end) end
+	ScreenGui:Destroy()
+end)
+
+-- TABS
+local TabHolder = Instance.new("Frame")
+TabHolder.Size = UDim2.new(1, 0, 0, 35)
+TabHolder.Position = UDim2.new(0, 0, 0, 35)
+TabHolder.BackgroundColor3 = Color3.fromRGB(25, 25, 25)
+TabHolder.BorderSizePixel = 0
+TabHolder.Parent = MainFrame
+
+local Content = Instance.new("Frame")
+Content.Size = UDim2.new(1, 0, 1, -70)
+Content.Position = UDim2.new(0, 0, 0, 70)
+Content.BackgroundTransparency = 1
+Content.Parent = MainFrame
+
+local function createTab(name, x)
+	local Button = Instance.new("TextButton")
+	Button.Size = UDim2.new(0, 170, 1, 0)
+	Button.Position = UDim2.new(0, x, 0, 0)
+	Button.Text = name
+	Button.BackgroundColor3 = Color3.fromRGB(35, 35, 35)
+	Button.TextColor3 = Color3.new(1, 1, 1)
+	Button.Font = Enum.Font.Gotham
+	Button.TextSize = 13
+	Button.BorderSizePixel = 0
+	Button.Parent = TabHolder
+
+	local Frame = Instance.new("Frame")
+	Frame.Size = UDim2.new(1, 0, 1, 0)
+	Frame.Visible = false
+	Frame.BackgroundTransparency = 1
+	Frame.Parent = Content
+
+	Button.MouseButton1Click:Connect(function()
+		for _, v in pairs(Content:GetChildren()) do
+			if v:IsA("Frame") then v.Visible = false end
+		end
+		for _, b in pairs(TabHolder:GetChildren()) do
+			if b:IsA("TextButton") then
+				b.BackgroundColor3 = Color3.fromRGB(35, 35, 35)
+			end
+		end
+		Frame.Visible = true
+		Button.BackgroundColor3 = Color3.fromRGB(60, 60, 60)
+	end)
+
+	return Frame, Button
+end
+
+local MainTab, MainBtn = createTab("Main", 0)
+local SettingsTab, SettingsBtn = createTab("Settings", 170)
+local ItemsTab, ItemsBtn = createTab("Items", 340)
+
+MainTab.Visible = true
+MainBtn.BackgroundColor3 = Color3.fromRGB(60, 60, 60)
+
+-- UI HELPERS
+local function createButton(parent, text, posY, callback)
+	local Btn = Instance.new("TextButton")
+	Btn.Size = UDim2.new(0, 220, 0, 35)
+	Btn.Position = UDim2.new(0, 10, 0, posY)
+	Btn.BackgroundColor3 = Color3.fromRGB(40, 40, 40)
+	Btn.TextColor3 = Color3.new(1, 1, 1)
+	Btn.Font = Enum.Font.Gotham
+	Btn.TextSize = 13
+	Btn.Text = text
+	Btn.Parent = parent
+
+	local BtnCorner = Instance.new("UICorner")
+	BtnCorner.CornerRadius = UDim.new(0, 6)
+	BtnCorner.Parent = Btn
+
+	Btn.MouseButton1Click:Connect(function()
+		callback(Btn)
+	end)
+
+	return Btn
+end
+
+local function createTextbox(parent, placeholder, posY)
+	local Box = Instance.new("TextBox")
+	Box.Size = UDim2.new(0, 220, 0, 35)
+	Box.Position = UDim2.new(0, 10, 0, posY)
+	Box.BackgroundColor3 = Color3.fromRGB(35, 35, 35)
+	Box.TextColor3 = Color3.new(1, 1, 1)
+	Box.Font = Enum.Font.Gotham
+	Box.TextSize = 13
+	Box.PlaceholderText = placeholder
+	Box.Text = ""
+	Box.Parent = parent
+
+	local BoxCorner = Instance.new("UICorner")
+	BoxCorner.CornerRadius = UDim.new(0, 6)
+	BoxCorner.Parent = Box
+
+	return Box
+end
+
+-- WORLD ESP HELPER
+local function makeDistanceBillboard(part)
+	local billboard = Instance.new("BillboardGui")
+	billboard.Name = "ESPLabel"
+	billboard.Size = UDim2.new(0, 80, 0, 25)
+	billboard.StudsOffset = Vector3.new(0, 2.5, 0)
+	billboard.AlwaysOnTop = true
+	billboard.Adornee = part
+	billboard.Parent = part
+
+	local distLabel = Instance.new("TextLabel")
+	distLabel.Size = UDim2.new(1, 0, 1, 0)
+	distLabel.BackgroundTransparency = 1
+	distLabel.TextColor3 = Color3.fromRGB(255, 220, 0)
+	distLabel.TextStrokeTransparency = 0
+	distLabel.TextStrokeColor3 = Color3.fromRGB(0, 0, 0)
+	distLabel.Font = Enum.Font.GothamBold
+	distLabel.TextSize = 13
+	distLabel.Text = "..."
+	distLabel.Parent = billboard
+
+	return billboard, distLabel
+end
+
+local function startDistanceLoop(dataTable, item, part, billboard, distLabel)
+	local conn
+	conn = RunService.Heartbeat:Connect(function()
+		if not dataTable.enabled then
+			conn:Disconnect()
+			return
+		end
+		if not item:IsDescendantOf(workspace) then
+			conn:Disconnect()
+			pcall(function() billboard:Destroy() end)
+			return
+		end
+		local char = LocalPlayer.Character
+		if not char then return end
+		local hrp = char:FindFirstChild("HumanoidRootPart")
+		if not hrp then return end
+
+		local dist = math.floor((hrp.Position - part.Position).Magnitude)
+		distLabel.Text = dist .. "m"
+
+		if dist <= 20 then
+			distLabel.TextColor3 = Color3.fromRGB(0, 255, 100)
+		elseif dist <= 60 then
+			distLabel.TextColor3 = Color3.fromRGB(255, 220, 0)
+		else
+			distLabel.TextColor3 = Color3.fromRGB(255, 80, 80)
+		end
+	end)
+end
+
+local function applyWorldESP(dataTable, objects, boxColor)
+	for _, hl in pairs(dataTable.highlights) do pcall(function() hl:Destroy() end) end
+	for _, lb in pairs(dataTable.labels) do pcall(function() lb:Destroy() end) end
+	dataTable.highlights = {}
+	dataTable.labels = {}
+
+	for _, obj in pairs(objects) do
+		if obj and obj:IsDescendantOf(workspace) then
+			local part = obj:FindFirstChildWhichIsA("BasePart") or obj
+
+			local hl = Instance.new("SelectionBox")
+			hl.Adornee = obj
+			hl.Color3 = boxColor
+			hl.LineThickness = 0.05
+			hl.SurfaceTransparency = 0.6
+			hl.SurfaceColor3 = boxColor
+			hl.Parent = obj
+			table.insert(dataTable.highlights, hl)
+
+			local billboard, distLabel = makeDistanceBillboard(part)
+			table.insert(dataTable.labels, billboard)
+			startDistanceLoop(dataTable, obj, part, billboard, distLabel)
+		end
+	end
+end
+
+local function clearWorldESP(dataTable)
+	dataTable.enabled = false
+	for _, hl in pairs(dataTable.highlights) do pcall(function() hl:Destroy() end) end
+	for _, lb in pairs(dataTable.labels) do pcall(function() lb:Destroy() end) end
+	dataTable.highlights = {}
+	dataTable.labels = {}
+end
+
+-- MAIN TAB
+createButton(MainTab, "Auto Zombie : OFF", 10, function(btn)
+	AutoZombie = not AutoZombie
+	btn.Text = "Auto Zombie : " .. (AutoZombie and "ON" or "OFF")
+	btn.BackgroundColor3 = AutoZombie and Color3.fromRGB(0,150,0) or Color3.fromRGB(40,40,40)
+end)
+
+createButton(MainTab, "Auto Scrap : OFF", 55, function(btn)
+	AutoScrap = not AutoScrap
+	btn.Text = "Auto Scrap : " .. (AutoScrap and "ON" or "OFF")
+	btn.BackgroundColor3 = AutoScrap and Color3.fromRGB(0,150,0) or Color3.fromRGB(40,40,40)
+end)
+
+createButton(MainTab, "Remove Fog : OFF", 100, function(btn)
+	local fogOn = btn.Text == "Remove Fog : ON"
+	if not fogOn then
+		btn.Text = "Remove Fog : ON"
+		btn.BackgroundColor3 = Color3.fromRGB(0, 150, 0)
+		task.spawn(function()
+			while btn.Text == "Remove Fog : ON" do
+				local fog = workspace:FindFirstChild("Fog")
+				if fog then fog:Destroy() end
+				Lighting.FogEnd = 100000
+				Lighting.FogStart = 100000
+				local Atm = Lighting:FindFirstChildOfClass("Atmosphere")
+				if Atm then
+					Atm.Density = 0
+					Atm.Haze = 0
+				end
+				task.wait(1)
+			end
+		end)
+	else
+		btn.Text = "Remove Fog : OFF"
+		btn.BackgroundColor3 = Color3.fromRGB(40, 40, 40)
+	end
+end)
+
+createButton(MainTab, "WalkSpeed 27 : OFF", 145, function(btn)
+	WalkspeedOn = not WalkspeedOn
+	btn.Text = "WalkSpeed 27 : " .. (WalkspeedOn and "ON" or "OFF")
+	btn.BackgroundColor3 = WalkspeedOn and Color3.fromRGB(0,150,0) or Color3.fromRGB(40,40,40)
+end)
+
+task.spawn(function()
+	while true do
+		task.wait(0.5)
+		if WalkspeedOn then
+			local char = LocalPlayer.Character
+			if char then
+				local hum = char:FindFirstChildOfClass("Humanoid")
+				if hum then hum.WalkSpeed = 27 end
+			end
+		end
+	end
+end)
+
+LocalPlayer.CharacterAdded:Connect(function(newChar)
+	if WalkspeedOn then
+		local hum = newChar:WaitForChild("Humanoid")
+		hum.WalkSpeed = 27
+	end
+end)
+
+createButton(MainTab, "ESP Crate : OFF", 190, function(btn)
+	ESPCrateData.enabled = not ESPCrateData.enabled
+	btn.Text = "ESP Crate : " .. (ESPCrateData.enabled and "ON" or "OFF")
+	btn.BackgroundColor3 = ESPCrateData.enabled and Color3.fromRGB(180,140,0) or Color3.fromRGB(40,40,40)
+
+	if ESPCrateData.enabled then
+		task.spawn(function()
+			while ESPCrateData.enabled do
+				local ok, crates = pcall(function()
+					return workspace:WaitForChild("Map", 5)
+						:WaitForChild("Crates", 5)
+						:GetChildren()
+				end)
+				if ok and crates then
+					applyWorldESP(ESPCrateData, crates, Color3.fromRGB(255, 100, 0))
+				end
+				task.wait(3)
+			end
+		end)
+	else
+		clearWorldESP(ESPCrateData)
+	end
+end)
+
+createButton(MainTab, "ESP MysteryBox : OFF", 235, function(btn)
+	ESPMysteryData.enabled = not ESPMysteryData.enabled
+	btn.Text = "ESP MysteryBox : " .. (ESPMysteryData.enabled and "ON" or "OFF")
+	btn.BackgroundColor3 = ESPMysteryData.enabled and Color3.fromRGB(130,0,200) or Color3.fromRGB(40,40,40)
+
+	if ESPMysteryData.enabled then
+		task.spawn(function()
+			while ESPMysteryData.enabled do
+				local ok, boxes = pcall(function()
+					local found = {}
+					for _, obj in pairs(workspace:GetDescendants()) do
+						if obj.Name == "MysteryBox" then
+							table.insert(found, obj)
+						end
+					end
+					return found
+				end)
+				if ok and boxes then
+					applyWorldESP(ESPMysteryData, boxes, Color3.fromRGB(180, 0, 255))
+				end
+				task.wait(3)
+			end
+		end)
+	else
+		clearWorldESP(ESPMysteryData)
+	end
+end)
+
+-- SETTINGS TAB
+local WeaponBox = createTextbox(SettingsTab, "Weapon Name", 10)
+WeaponBox.Text = WeaponName
+
+createButton(SettingsTab, "Set Weapon", 55, function()
+	if WeaponBox.Text ~= "" then
+		WeaponName = WeaponBox.Text
+	end
+end)
+
+createButton(SettingsTab, "STOP PICK ITEM", 110, function()
+	StopPickup = true
+	task.wait(1)
+	StopPickup = false
+end)
+
+createButton(SettingsTab, "Infinite Jump : OFF", 155, function(btn)
+	InfiniteJumpOn = not InfiniteJumpOn
+	btn.Text = "Infinite Jump : " .. (InfiniteJumpOn and "ON" or "OFF")
+	btn.BackgroundColor3 = InfiniteJumpOn and Color3.fromRGB(0,150,0) or Color3.fromRGB(40,40,40)
+end)
+
+createButton(SettingsTab, "Instant Interact", 200, function(btn)
+	for _, v in ipairs(workspace:GetDescendants()) do
+		if v.ClassName == "ProximityPrompt" then
+			v.HoldDuration = 0
+		end
+	end
+	-- Also hook new ones added later
+	workspace.DescendantAdded:Connect(function(v)
+		if v.ClassName == "ProximityPrompt" then
+			v.HoldDuration = 0
+		end
+	end)
+	btn.Text = "Instant Interact ✓"
+	btn.BackgroundColor3 = Color3.fromRGB(0, 150, 0)
+	btn.Active = false
+end)
+
+-- Infinite Jump logic
+UserInputService.JumpRequest:Connect(function()
+	if InfiniteJumpOn then
+		local char = LocalPlayer.Character
+		if char then
+			local hum = char:FindFirstChildOfClass("Humanoid")
+			if hum then
+				hum:ChangeState(Enum.HumanoidStateType.Jumping)
+			end
+		end
+	end
+end)
+
+-- ITEMS TAB
+local SearchBox = createTextbox(ItemsTab, "Search Item", 10)
+SearchBox.Size = UDim2.new(0, 355, 0, 35)
+
+local UnespAllBtn = Instance.new("TextButton")
+UnespAllBtn.Size = UDim2.new(0, 120, 0, 35)
+UnespAllBtn.Position = UDim2.new(0, 365, 0, 10)
+UnespAllBtn.BackgroundColor3 = Color3.fromRGB(150, 40, 40)
+UnespAllBtn.TextColor3 = Color3.new(1, 1, 1)
+UnespAllBtn.Font = Enum.Font.GothamBold
+UnespAllBtn.TextSize = 12
+UnespAllBtn.Text = "Unesp All"
+UnespAllBtn.Parent = ItemsTab
+
+local UnespCorner = Instance.new("UICorner")
+UnespCorner.CornerRadius = UDim.new(0, 6)
+UnespCorner.Parent = UnespAllBtn
+
+local Scroll = Instance.new("ScrollingFrame")
+Scroll.Size = UDim2.new(1, -10, 1, -55)
+Scroll.Position = UDim2.new(0, 5, 0, 50)
+Scroll.CanvasSize = UDim2.new(0, 0, 0, 0)
+Scroll.BackgroundColor3 = Color3.fromRGB(20, 20, 20)
+Scroll.ScrollBarThickness = 4
+Scroll.Parent = ItemsTab
+
+local UIList = Instance.new("UIListLayout")
+UIList.Padding = UDim.new(0, 5)
+UIList.Parent = Scroll
+
+-- ESP HELPERS (items)
+local function clearESPForItem(itemName)
+	local data = ESPRegistry[itemName]
+	if not data then return end
+	if data.highlights then
+		for _, hl in pairs(data.highlights) do pcall(function() hl:Destroy() end) end
+	end
+	if data.labels then
+		for _, lb in pairs(data.labels) do pcall(function() lb:Destroy() end) end
+	end
+	ESPRegistry[itemName] = nil
+end
+
+local function applyESPForItem(itemName, list, amount)
+	clearESPForItem(itemName)
+
+	local highlights = {}
+	local labels = {}
+	local count = math.min(amount, #list)
+	local fakeData = { enabled = true }
+
+	for i = 1, count do
+		local item = list[i]
+		if item and item:IsDescendantOf(workspace) then
+			local part = item:FindFirstChild("Union")
+				or item:FindFirstChildWhichIsA("BasePart")
+
+			local hl = Instance.new("SelectionBox")
+			hl.Adornee = item
+			hl.Color3 = Color3.fromRGB(255, 200, 0)
+			hl.LineThickness = 0.05
+			hl.SurfaceTransparency = 0.6
+			hl.SurfaceColor3 = Color3.fromRGB(255, 200, 0)
+			hl.Parent = item
+			table.insert(highlights, hl)
+
+			if part then
+				local billboard, distLabel = makeDistanceBillboard(part)
+				table.insert(labels, billboard)
+
+				local conn
+				conn = RunService.Heartbeat:Connect(function()
+					if not ESPRegistry[itemName] then
+						conn:Disconnect()
+						return
+					end
+					if not item:IsDescendantOf(workspace) then
+						conn:Disconnect()
+						pcall(function() billboard:Destroy() end)
+						return
+					end
+					local char = LocalPlayer.Character
+					if not char then return end
+					local hrp = char:FindFirstChild("HumanoidRootPart")
+					if not hrp then return end
+
+					local dist = math.floor((hrp.Position - part.Position).Magnitude)
+					distLabel.Text = dist .. "m"
+
+					if dist <= 20 then
+						distLabel.TextColor3 = Color3.fromRGB(0, 255, 100)
+					elseif dist <= 60 then
+						distLabel.TextColor3 = Color3.fromRGB(255, 220, 0)
+					else
+						distLabel.TextColor3 = Color3.fromRGB(255, 80, 80)
+					end
+				end)
+			end
+		end
+	end
+
+	ESPRegistry[itemName] = {
+		highlights = highlights,
+		labels = labels,
+		enabled = true,
+	}
+end
+
+UnespAllBtn.MouseButton1Click:Connect(function()
+	for itemName, _ in pairs(ESPRegistry) do
+		clearESPForItem(itemName)
+	end
+end)
+
+-- FUNCTIONS
+local function getTool()
+	local char = LocalPlayer.Character
+	if not char then return nil end
+	return char:FindFirstChild(WeaponName)
+end
+
+local function swing()
+	local tool = getTool()
+	if tool and tool:FindFirstChild("Swing") then
+		tool.Swing:FireServer()
+	end
+end
+
+local function hitTargets(targets)
+	local tool = getTool()
+	if tool and tool:FindFirstChild("HitTargets") then
+		tool.HitTargets:FireServer(targets)
+	end
+end
+
+-- AUTO FARM
+local lastHit = 0
+
+RunService.Heartbeat:Connect(function()
+	if tick() - lastHit < Delay then return end
+	lastHit = tick()
+
+	local char = LocalPlayer.Character
+	if not char then return end
+	local hrp = char:FindFirstChild("HumanoidRootPart")
+	if not hrp then return end
+
+	if AutoZombie then
+		local targets = {}
+		local ok, chars = pcall(function()
+			return workspace:WaitForChild("Characters", 5):GetChildren()
+		end)
+		if ok then
+			for _, mob in pairs(chars) do
+				local hum = mob:FindFirstChildOfClass("Humanoid")
+				local root = mob:FindFirstChild("HumanoidRootPart")
+				if hum and hum.Health > 0 and root then
+					if (hrp.Position - root.Position).Magnitude <= Range then
+						table.insert(targets, mob)
+					end
+				end
+			end
+			if #targets > 0 then
+				swing()
+				hitTargets(targets)
+			end
+		end
+	end
+
+	if AutoScrap then
+		local targets = {}
+		local ok, structs = pcall(function()
+			return workspace:WaitForChild("Structures", 5):GetChildren()
+		end)
+		if ok then
+			for _, scrap in pairs(structs) do
+				if scrap.Name == "Scrap Pile" then
+					local part = scrap:FindFirstChildWhichIsA("BasePart")
+					if part and (hrp.Position - part.Position).Magnitude <= Range then
+						table.insert(targets, scrap)
+					end
+				end
+			end
+			if #targets > 0 then
+				swing()
+				hitTargets(targets)
+			end
+		end
+	end
+end)
+
+-- ITEM SYSTEM
+local function refreshItems()
+	for _, v in pairs(Scroll:GetChildren()) do
+		if v:IsA("Frame") then v:Destroy() end
+	end
+
+	local items = {}
+
+	local ok, dropped = pcall(function()
+		return workspace:WaitForChild("DroppedItems", 5):GetChildren()
+	end)
+
+	if not ok then
+		Scroll.CanvasSize = UDim2.new(0, 0, 0, 0)
+		return
+	end
+
+	for _, item in pairs(dropped) do
+		items[item.Name] = items[item.Name] or {}
+		table.insert(items[item.Name], item)
+	end
+
+	for itemName, list in pairs(items) do
+		if SearchBox.Text == ""
+			or string.find(string.lower(itemName), string.lower(SearchBox.Text)) then
+
+			local Holder = Instance.new("Frame")
+			Holder.Size = UDim2.new(1, -10, 0, 40)
+			Holder.BackgroundColor3 = Color3.fromRGB(35, 35, 35)
+			Holder.Parent = Scroll
+
+			local HolderCorner = Instance.new("UICorner")
+			HolderCorner.CornerRadius = UDim.new(0, 6)
+			HolderCorner.Parent = Holder
+
+			local Label = Instance.new("TextLabel")
+			Label.Size = UDim2.new(0, 200, 1, 0)
+			Label.Position = UDim2.new(0, 8, 0, 0)
+			Label.BackgroundTransparency = 1
+			Label.TextColor3 = Color3.new(1, 1, 1)
+			Label.TextXAlignment = Enum.TextXAlignment.Left
+			Label.Font = Enum.Font.Gotham
+			Label.TextSize = 12
+      	Label.Text = itemName .. " | x" .. #list
+			Label.Parent = Holder
+
+			local AmountBox = Instance.new("TextBox")
+			AmountBox.Size = UDim2.new(0, 40, 0, 28)
+			AmountBox.Position = UDim2.new(0, 215, 0, 6)
+			AmountBox.BackgroundColor3 = Color3.fromRGB(50, 50, 50)
+			AmountBox.TextColor3 = Color3.new(1, 1, 1)
+			AmountBox.Font = Enum.Font.Gotham
+			AmountBox.TextSize = 13
+			AmountBox.Text = "1"
+			AmountBox.Parent = Holder
+
+			local AmountCorner = Instance.new("UICorner")
+			AmountCorner.CornerRadius = UDim.new(0, 4)
+			AmountCorner.Parent = AmountBox
+
+			local TPBtn = Instance.new("TextButton")
+			TPBtn.Size = UDim2.new(0, 65, 0, 28)
+			TPBtn.Position = UDim2.new(0, 262, 0, 6)
+			TPBtn.BackgroundColor3 = Color3.fromRGB(0, 120, 200)
+			TPBtn.TextColor3 = Color3.new(1, 1, 1)
+			TPBtn.Font = Enum.Font.GothamBold
+			TPBtn.TextSize = 13
+			TPBtn.Text = "TP"
+			TPBtn.Parent = Holder
+
+			local TPCorner = Instance.new("UICorner")
+			TPCorner.CornerRadius = UDim.new(0, 4)
+			TPCorner.Parent = TPBtn
+
+			local ESPItemBtn = Instance.new("TextButton")
+			ESPItemBtn.Size = UDim2.new(0, 65, 0, 28)
+			ESPItemBtn.Position = UDim2.new(0, 334, 0, 6)
+			ESPItemBtn.BackgroundColor3 = Color3.fromRGB(40, 40, 40)
+			ESPItemBtn.TextColor3 = Color3.new(1, 1, 1)
+			ESPItemBtn.Font = Enum.Font.GothamBold
+			ESPItemBtn.TextSize = 13
+			ESPItemBtn.Text = "ESP"
+			ESPItemBtn.Parent = Holder
+
+			local ESPItemCorner = Instance.new("UICorner")
+			ESPItemCorner.CornerRadius = UDim.new(0, 4)
+			ESPItemCorner.Parent = ESPItemBtn
+
+			if ESPRegistry[itemName] and ESPRegistry[itemName].enabled then
+				ESPItemBtn.BackgroundColor3 = Color3.fromRGB(180, 140, 0)
+				ESPItemBtn.Text = "ESP ✓"
+			end
+
+			ESPItemBtn.MouseButton1Click:Connect(function()
+				local data = ESPRegistry[itemName]
+				if data and data.enabled then
+					clearESPForItem(itemName)
+					ESPItemBtn.BackgroundColor3 = Color3.fromRGB(40, 40, 40)
+					ESPItemBtn.Text = "ESP"
+				else
+					local amount = tonumber(AmountBox.Text) or 1
+					applyESPForItem(itemName, list, amount)
+					ESPItemBtn.BackgroundColor3 = Color3.fromRGB(180, 140, 0)
+					ESPItemBtn.Text = "ESP ✓"
+				end
+			end)
+
+			TPBtn.MouseButton1Click:Connect(function()
+				local char = LocalPlayer.Character
+				if not char then return end
+
+				local hrp = char:FindFirstChild("HumanoidRootPart")
+				if not hrp then return end
+
+				local DragSystem = char:FindFirstChild("DragSystem")
+				local DragItem = DragSystem and DragSystem:FindFirstChild("DragItem")
+
+				local oldPos = hrp.CFrame
+				local amount = tonumber(AmountBox.Text) or 1
+
+				for i = 1, math.min(amount, #list) do
+					if StopPickup then break end
+
+					local item = list[i]
+
+					if item and item:IsDescendantOf(workspace) then
+						local part = item:FindFirstChild("Union")
+							or item:FindFirstChildWhichIsA("BasePart")
+
+						if part then
+							-- TP instantly
+							hrp.CFrame = part.CFrame + Vector3.new(0, 3, 0)
+
+							-- Drag immediately
+							if DragItem then
+								DragItem:FireServer(item, part)
+							end
+
+							-- Pickup immediately
+							if AdjustBackpackRemote then
+								local backpackItem = ReplicatedStorage
+									:WaitForChild("BackpackStorage", 5)
+									:FindFirstChild(item.Name)
+								if backpackItem then
+									AdjustBackpackRemote:FireServer(backpackItem)
+								end
+							end
+
+							-- Return immediately
+							hrp.CFrame = oldPos
+						end
+					end
+				end
+			end)
+		end
+	end
+
+	task.wait()
+
+	Scroll.CanvasSize = UDim2.new(
+		0, 0, 0,
+		UIList.AbsoluteContentSize.Y + 10
+	)
+end
+
+SearchBox:GetPropertyChangedSignal("Text"):Connect(refreshItems)
+
+task.spawn(function()
+	while true do
+		task.wait(2)
+		pcall(refreshItems)
+	end
+end)
